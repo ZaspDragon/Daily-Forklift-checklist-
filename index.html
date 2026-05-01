@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daily Forklift Pre-use Inspection Checklist</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- ─── HEADER ─── -->
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="logo-icon">🏗️</div>
+        <div>
+          <h1>Chadwell Supply</h1>
+          <p class="subtitle">Daily Pre-use Forklift Inspection Checklist</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- ─── INFO FIELDS ─── -->
+    <section class="info-bar">
+      <div class="info-field">
+        <label for="branch">Branch</label>
+        <input id="branch" type="text" placeholder="e.g. OH01" />
+      </div>
+      <div class="info-field">
+        <label for="truckNum">Truck #</label>
+        <input id="truckNum" type="text" placeholder="e.g. 30" />
+      </div>
+      <div class="info-field">
+        <label for="serialNum">Serial #</label>
+        <input id="serialNum" type="text" placeholder="Serial number" />
+      </div>
+      <div class="info-field">
+        <label for="inspDate">Date</label>
+        <input id="inspDate" type="date" />
+      </div>
+      <div class="info-field">
+        <label for="shift">Shift</label>
+        <select id="shift">
+          <option value="">Select…</option>
+          <option value="1st">1st</option>
+          <option value="2nd">2nd</option>
+          <option value="3rd">3rd</option>
+        </select>
+      </div>
+      <div class="info-field">
+        <label for="operator">Operator Initials</label>
+        <input id="operator" type="text" placeholder="e.g. AO" maxlength="4" class="initials-input" />
+      </div>
+    </section>
+
+    <p class="instructions">
+      For each item: <strong>Pass</strong> = item OK&nbsp;&nbsp;|&nbsp;&nbsp;<strong>Fail</strong> = describe issue in comments below
+    </p>
+
+    <!-- ─── CHECKLISTS ─── -->
+    <div id="checklistContainer"></div>
+
+    <!-- ─── COMMENTS ─── -->
+    <section class="comments-section">
+      <label for="comments"><strong>Comments / Failure Descriptions:</strong></label>
+      <textarea id="comments" rows="4" placeholder="Describe any failures or issues here…"></textarea>
+    </section>
+
+    <!-- ─── ACTIONS ─── -->
+    <div class="actions-bar">
+      <button id="btnSubmit" class="btn btn-primary" onclick="submitChecklist()">
+        ✅ Submit Inspection
+      </button>
+      <button id="btnClear" class="btn btn-outline" onclick="clearForm()">
+        🔄 Clear Form
+      </button>
+      <button id="btnHistory" class="btn btn-secondary" onclick="toggleHistory()">
+        📋 View History
+      </button>
+      <button id="btnExport" class="btn btn-secondary" onclick="exportCSV()">
+        📤 Export CSV
+      </button>
+    </div>
+
+    <!-- ─── HISTORY PANEL ─── -->
+    <section id="historyPanel" class="history-panel hidden">
+      <h2>📋 Inspection History</h2>
+      <div class="history-filters">
+        <input id="histFilterDate" type="date" onchange="renderHistory()" />
+        <input id="histFilterTruck" type="text" placeholder="Filter by Truck #" oninput="renderHistory()" />
+        <button class="btn btn-danger btn-sm" onclick="clearHistory()">🗑️ Clear All History</button>
+      </div>
+      <div id="historyList"></div>
+    </section>
+
+    <footer>
+      <p>Chadwell Supply &mdash; Safety First &bull; Powered by <a href="https://getviktor.com" target="_blank">Viktor AI</a></p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

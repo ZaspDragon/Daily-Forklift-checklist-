@@ -7,18 +7,33 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+
+  <!-- Firebase SDK (compat) — cloud sync across devices -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
 <!-- ════════════════════════════════════════════════
+     LOADING OVERLAY
+     ════════════════════════════════════════════════ -->
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <p style="margin-top:14px;font-weight:600;color:#1a56db">Connecting…</p>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
      LOGIN PAGE
      ════════════════════════════════════════════════ -->
-<div id="loginPage" class="page">
+<div id="loginPage" class="page hidden">
   <div class="login-wrapper">
     <div class="login-card">
       <div class="login-logo">🏗️</div>
       <h1>Chadwell Supply</h1>
       <p class="login-sub">Daily Forklift Inspection System</p>
+      <div id="syncBadge" class="sync-badge sync-local">💾 Local Only</div>
       <div class="login-form">
         <div class="form-group">
           <label for="loginUser">Username</label>
@@ -143,7 +158,7 @@
 
       <div class="action-row">
         <button class="btn btn-secondary btn-lg" onclick="goBackToStep1()">← Back</button>
-        <button class="btn btn-primary btn-lg" style="flex:1" onclick="submitInspection()">✅ Submit Inspection</button>
+        <button class="btn btn-primary btn-lg" style="flex:1" id="submitBtn" onclick="submitInspection()">✅ Submit Inspection</button>
       </div>
     </div>
 

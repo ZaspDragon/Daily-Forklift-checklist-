@@ -1,104 +1,233 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Daily Forklift Pre-use Inspection Checklist</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Chadwell Supply — Forklift Inspection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app-container">
-    <!-- ─── HEADER ─── -->
-    <header class="app-header">
-      <div class="logo-area">
-        <div class="logo-icon">🏗️</div>
-        <div>
-          <h1>Chadwell Supply</h1>
-          <p class="subtitle">Daily Pre-use Forklift Inspection Checklist</p>
+
+<!-- ════════════════════════════════════════════════
+     LOGIN PAGE
+     ════════════════════════════════════════════════ -->
+<div id="loginPage" class="page">
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-logo">🏗️</div>
+      <h1>Chadwell Supply</h1>
+      <p class="login-sub">Daily Forklift Inspection System</p>
+      <div class="login-form">
+        <div class="form-group">
+          <label for="loginUser">Username</label>
+          <input type="text" id="loginUser" placeholder="Enter username" autocomplete="username" autocapitalize="none">
         </div>
+        <div class="form-group">
+          <label for="loginPin">PIN</label>
+          <input type="password" id="loginPin" placeholder="Enter PIN" inputmode="numeric" maxlength="6" autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary btn-lg btn-block" onclick="doLogin()">Sign In</button>
+        <div id="loginError" class="login-error hidden"></div>
       </div>
-    </header>
+    </div>
+  </div>
+</div>
 
-    <!-- ─── INFO FIELDS ─── -->
-    <section class="info-bar">
-      <div class="info-field">
-        <label for="branch">Branch</label>
-        <input id="branch" type="text" placeholder="e.g. OH01" />
+<!-- ════════════════════════════════════════════════
+     EMPLOYEE DASHBOARD
+     ════════════════════════════════════════════════ -->
+<div id="employeeDashPage" class="page hidden">
+  <div class="app-container">
+    <nav class="top-bar">
+      <div class="top-bar-left">
+        <span class="top-bar-icon">🚜</span>
+        <span class="top-bar-title">Employee</span>
       </div>
-      <div class="info-field">
-        <label for="truckNum">Truck #</label>
-        <input id="truckNum" type="text" placeholder="e.g. 30" />
+      <div class="top-bar-right">
+        <span class="top-bar-user" id="empUserLabel"></span>
+        <button class="btn btn-sm btn-outline" onclick="doLogout()">Logout</button>
       </div>
-      <div class="info-field">
-        <label for="serialNum">Serial #</label>
-        <input id="serialNum" type="text" placeholder="Serial number" />
-      </div>
-      <div class="info-field">
-        <label for="inspDate">Date</label>
-        <input id="inspDate" type="date" />
-      </div>
-      <div class="info-field">
-        <label for="shift">Shift</label>
-        <select id="shift">
-          <option value="">Select…</option>
-          <option value="1st">1st</option>
-          <option value="2nd">2nd</option>
-          <option value="3rd">3rd</option>
-        </select>
-      </div>
-      <div class="info-field">
-        <label for="operator">Operator Initials</label>
-        <input id="operator" type="text" placeholder="e.g. AO" maxlength="4" class="initials-input" />
-      </div>
-    </section>
+    </nav>
 
-    <p class="instructions">
-      For each item: <strong>Pass</strong> = item OK&nbsp;&nbsp;|&nbsp;&nbsp;<strong>Fail</strong> = describe issue in comments below
-    </p>
-
-    <!-- ─── CHECKLISTS ─── -->
-    <div id="checklistContainer"></div>
-
-    <!-- ─── COMMENTS ─── -->
-    <section class="comments-section">
-      <label for="comments"><strong>Comments / Failure Descriptions:</strong></label>
-      <textarea id="comments" rows="4" placeholder="Describe any failures or issues here…"></textarea>
-    </section>
-
-    <!-- ─── ACTIONS ─── -->
-    <div class="actions-bar">
-      <button id="btnSubmit" class="btn btn-primary" onclick="submitChecklist()">
-        ✅ Submit Inspection
-      </button>
-      <button id="btnClear" class="btn btn-outline" onclick="clearForm()">
-        🔄 Clear Form
-      </button>
-      <button id="btnHistory" class="btn btn-secondary" onclick="toggleHistory()">
-        📋 View History
-      </button>
-      <button id="btnExport" class="btn btn-secondary" onclick="exportCSV()">
-        📤 Export CSV
-      </button>
+    <div class="dash-hero">
+      <h2>Good <span id="empGreeting"></span>!</h2>
+      <p>Ready to start your daily forklift inspection?</p>
     </div>
 
-    <!-- ─── HISTORY PANEL ─── -->
-    <section id="historyPanel" class="history-panel hidden">
-      <h2>📋 Inspection History</h2>
-      <div class="history-filters">
-        <input id="histFilterDate" type="date" onchange="renderHistory()" />
-        <input id="histFilterTruck" type="text" placeholder="Filter by Truck #" oninput="renderHistory()" />
-        <button class="btn btn-danger btn-sm" onclick="clearHistory()">🗑️ Clear All History</button>
-      </div>
-      <div id="historyList"></div>
-    </section>
+    <button class="btn btn-primary btn-lg btn-block" onclick="showInspectionForm()">
+      🔍 Start Forklift Inspection
+    </button>
 
-    <footer>
-      <p>Chadwell Supply &mdash; Safety First &bull; Powered by <a href="https://getviktor.com" target="_blank">Viktor AI</a></p>
-    </footer>
+    <div style="margin-top:24px">
+      <h3 style="margin-bottom:12px">📂 My Recent Inspections</h3>
+      <div id="empRecentList"></div>
+    </div>
   </div>
+</div>
 
-  <script src="app.js"></script>
+<!-- ════════════════════════════════════════════════
+     INSPECTION FORM + CHECKLIST
+     ════════════════════════════════════════════════ -->
+<div id="inspectionPage" class="page hidden">
+  <div class="app-container">
+    <nav class="top-bar">
+      <div class="top-bar-left">
+        <button class="btn btn-sm btn-outline" onclick="backToEmpDash()">← Back</button>
+        <span class="top-bar-title" style="margin-left:8px">Inspection</span>
+      </div>
+      <div class="top-bar-right">
+        <button class="btn btn-sm btn-outline" onclick="doLogout()">Logout</button>
+      </div>
+    </nav>
+
+    <!-- Step 1: Info -->
+    <div id="inspStep1">
+      <h2 style="margin-bottom:16px">Forklift Details</h2>
+      <div class="form-card">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="inspBranch">Branch *</label>
+            <input type="text" id="inspBranch" placeholder="e.g. Orlando">
+          </div>
+          <div class="form-group">
+            <label for="inspTruck">Truck # *</label>
+            <input type="text" id="inspTruck" placeholder="e.g. FL-12">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="inspSerial">Serial #</label>
+            <input type="text" id="inspSerial" placeholder="Optional">
+          </div>
+          <div class="form-group">
+            <label for="inspDate">Date *</label>
+            <input type="date" id="inspDate">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="inspShift">Shift</label>
+            <select id="inspShift">
+              <option value="1st">1st Shift</option>
+              <option value="2nd">2nd Shift</option>
+              <option value="3rd">3rd Shift</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="inspOperator">Operator Name / Initials *</label>
+            <input type="text" id="inspOperator" placeholder="e.g. John S.">
+          </div>
+        </div>
+        <button class="btn btn-primary btn-lg btn-block" onclick="goToChecklist()">
+          Continue to Checklist →
+        </button>
+      </div>
+    </div>
+
+    <!-- Step 2: Checklist -->
+    <div id="inspStep2" class="hidden">
+      <div class="insp-info-bar" id="inspInfoBar"></div>
+      <p class="instructions">Tap <strong>Pass</strong>, <strong>Fail</strong>, or <strong>N/A</strong> for each item. Failed items require a comment.</p>
+      <div id="checklistContainer"></div>
+
+      <div class="form-card" style="margin-top:16px">
+        <label style="font-weight:600;margin-bottom:8px;display:block">💬 Comments / Failure Notes</label>
+        <textarea id="inspComments" rows="3" placeholder="Describe any failures or concerns..."></textarea>
+      </div>
+
+      <div id="failWarning" class="fail-warning hidden">
+        ⚠️ You have failed items — please describe them in the comments before submitting.
+      </div>
+
+      <div class="action-row">
+        <button class="btn btn-secondary btn-lg" onclick="goBackToStep1()">← Back</button>
+        <button class="btn btn-primary btn-lg" style="flex:1" onclick="submitInspection()">✅ Submit Inspection</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Confirmation -->
+    <div id="inspStep3" class="hidden">
+      <div class="confirmation-card">
+        <div class="confirm-icon">✅</div>
+        <h2>Inspection Submitted!</h2>
+        <p id="confirmSummary"></p>
+        <div class="action-row" style="margin-top:20px;justify-content:center">
+          <button class="btn btn-primary btn-lg" onclick="showInspectionForm()">📝 New Inspection</button>
+          <button class="btn btn-outline btn-lg" onclick="backToEmpDash()">← Dashboard</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     MANAGEMENT DASHBOARD
+     ════════════════════════════════════════════════ -->
+<div id="managerPage" class="page hidden">
+  <div class="app-container">
+    <nav class="top-bar">
+      <div class="top-bar-left">
+        <span class="top-bar-icon">📋</span>
+        <span class="top-bar-title" id="mgrTitle">Management</span>
+      </div>
+      <div class="top-bar-right">
+        <span class="top-bar-user" id="mgrUserLabel"></span>
+        <button class="btn btn-sm btn-outline" onclick="doLogout()">Logout</button>
+      </div>
+    </nav>
+
+    <!-- Stats -->
+    <div class="stats-row" id="mgrStats"></div>
+
+    <!-- Filters -->
+    <div class="filter-bar">
+      <div class="form-group">
+        <label for="mgrFilterDate">Date</label>
+        <input type="date" id="mgrFilterDate" onchange="renderMgrDashboard()">
+      </div>
+      <div class="form-group">
+        <label for="mgrFilterTruck">Truck #</label>
+        <input type="text" id="mgrFilterTruck" placeholder="All" oninput="renderMgrDashboard()">
+      </div>
+      <div class="form-group">
+        <label for="mgrFilterOperator">Operator</label>
+        <select id="mgrFilterOperator" onchange="renderMgrDashboard()">
+          <option value="">All Operators</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="mgrFilterStatus">Status</label>
+        <select id="mgrFilterStatus" onchange="renderMgrDashboard()">
+          <option value="">All</option>
+          <option value="passed">✅ Passed</option>
+          <option value="failed">⚠️ Failed</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="action-row" style="margin-bottom:16px">
+      <button class="btn btn-primary" onclick="exportCSV()">📤 Export CSV</button>
+      <button class="btn btn-outline" onclick="initMgrDashboard()">🔄 Refresh</button>
+      <div id="adminClearBtn" class="hidden" style="margin-left:auto">
+        <button class="btn btn-danger btn-sm" onclick="clearAllData()">🗑️ Clear All History</button>
+      </div>
+    </div>
+
+    <!-- Inspection list -->
+    <div id="mgrList"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toastEl" class="toast"></div>
+
+<footer>
+  <p>Chadwell Supply — Daily Forklift Inspection System</p>
+</footer>
+
+<script src="app.js"></script>
 </body>
 </html>

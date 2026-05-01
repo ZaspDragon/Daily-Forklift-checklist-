@@ -1,403 +1,566 @@
 /* ═══════════════════════════════════════════════════════════════
-   Chadwell Supply — Daily Pre-use Forklift Inspection Checklist
+   Chadwell Supply — Daily Forklift Inspection System
+   Role-based: Employee / Manager / Admin
+   localStorage now — Firebase-ready architecture
    ═══════════════════════════════════════════════════════════════ */
 
-// ── Checklist Data ──────────────────────────────────────────────
-const SECTIONS = [
-  {
-    id: "motor-off",
-    title: "Motor-Off Checks",
-    cssClass: "motor-off",
-    items: [
-      "Operator's manual present",
-      "Fluids – Hydraulic, transmission, brake",
-      "Leaks – Check for signs of fluid leaks",
-      "Tires – Condition",
-      "Forks, top clip retaining pin & heel condition",
-      "Load backrest is attached",
-      "Finger guards are attached",
-      "Overhead guards are attached",
-      "Battery – Properly secured and maintained",
-      "Seatbelt working properly",
-      "Capacity plate(s) present and legible",
-      "Safety warning labels present and legible"
-    ]
-  },
-  {
-    id: "motor-on",
-    title: "Motor-On Checks",
-    cssClass: "motor-on",
-    items: [
-      "Accelerator functioning smoothly",
-      "Parking brake – holds truck",
-      "Service brake functioning smoothly",
-      "Steering functioning smoothly",
-      "Drive controls FWD/REV working smoothly",
-      "All fork controls functioning smoothly",
-      "Attachment control functioning smoothly",
-      "Horn, all lights, alarms all working",
-      "All instruments/gauges/meters working"
-    ]
-  },
-  {
-    id: "electric",
-    title: "Electric Trucks",
-    cssClass: "electric",
-    items: [
-      "Batteries – free from damage and charged"
-    ]
-  },
-  {
-    id: "propane",
-    title: "Propane Trucks",
-    cssClass: "propane",
-    items: [
-      "Tank properly mounted and secured",
-      "Inspect cylinder, gauge, valve, connection",
-      "Hose securely connected and free from damage"
-    ]
-  }
+// ══════════════════════════════════════════════════════════════
+// AUTH — swap this section for Firebase Auth later
+// ══════════════════════════════════════════════════════════════
+
+const USERS = [
+  { username: "employee", pin: "1234", role: "employee", display: "Employee" },
+  { username: "manager",  pin: "2468", role: "manager",  display: "Manager" },
+  { username: "admin",    pin: "9999", role: "admin",    display: "Admin" }
 ];
 
-const STORAGE_KEY = "forklift_inspections";
+let currentUser = null;  // { username, role, display }
 
-// ── State ───────────────────────────────────────────────────────
-let checkState = {};   // key: "section-idx" → "pass"|"fail"|"na"|null
-let sectionOpen = {};  // key: sectionId → boolean
+function doLogin() {
+  const user = document.getElementById("loginUser").value.trim().toLowerCase();
+  const pin  = document.getElementById("loginPin").value.trim();
+  const errEl = document.getElementById("loginError");
 
-// ── Init ────────────────────────────────────────────────────────
+  const match = USERS.find(u => u.username === user && u.pin === pin);
+  if (!match) {
+    errEl.textContent = "Invalid username or PIN. Please try again.";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  errEl.classList.add("hidden");
+  currentUser = { username: match.username, role: match.role, display: match.display };
+  sessionStorage.setItem("forklift_session", JSON.stringify(currentUser));
+
+  routeAfterLogin();
+}
+
+function doLogout() {
+  currentUser = null;
+  sessionStorage.removeItem("forklift_session");
+  showPage("loginPage");
+}
+
+function restoreSession() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem("forklift_session"));
+    if (s && s.username && s.role) {
+      currentUser = s;
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+function routeAfterLogin() {
+  if (!currentUser) { showPage("loginPage"); return; }
+
+  if (currentUser.role === "employee") {
+    initEmpDashboard();
+  } else {
+    initMgrDashboard();
+  }
+}
+
+// Allow Enter key to submit login
 document.addEventListener("DOMContentLoaded", () => {
-  // Set today's date
-  document.getElementById("inspDate").valueAsDate = new Date();
-
-  // Initialize state
-  let itemNum = 0;
-  SECTIONS.forEach(sec => {
-    sectionOpen[sec.id] = true;
-    sec.items.forEach((_, i) => {
-      checkState[`${sec.id}-${i}`] = null;
-      itemNum++;
-    });
+  document.getElementById("loginPin").addEventListener("keydown", e => {
+    if (e.key === "Enter") doLogin();
+  });
+  document.getElementById("loginUser").addEventListener("keydown", e => {
+    if (e.key === "Enter") document.getElementById("loginPin").focus();
   });
 
-  renderChecklist();
+  // Restore session
+  if (restoreSession()) {
+    routeAfterLogin();
+  }
 });
 
-// ── Render ──────────────────────────────────────────────────────
+
+// ══════════════════════════════════════════════════════════════
+// DATA — swap this section for Firestore later
+// ══════════════════════════════════════════════════════════════
+
+const STORAGE_KEY = "forklift_inspections_v2";
+
+function getAllInspections() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveInspection(record) {
+  const all = getAllInspections();
+  all.unshift(record);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+}
+
+function clearAllInspections() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+function getMyInspections() {
+  if (!currentUser) return [];
+  return getAllInspections().filter(r => r.username === currentUser.username);
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// CHECKLIST ITEMS — Brandon's 15-item list
+// ══════════════════════════════════════════════════════════════
+
+const CHECKLIST_ITEMS = [
+  "Forks",
+  "Tires",
+  "Horn",
+  "Lights",
+  "Backup alarm",
+  "Seatbelt",
+  "Brakes",
+  "Steering",
+  "Hydraulic leaks",
+  "Battery / propane",
+  "Mast / chains",
+  "Data plate",
+  "Safety decals",
+  "General damage",
+  "Floor area clear"
+];
+
+
+// ══════════════════════════════════════════════════════════════
+// PAGE MANAGEMENT
+// ══════════════════════════════════════════════════════════════
+
+function showPage(id) {
+  document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+  window.scrollTo(0, 0);
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// EMPLOYEE DASHBOARD
+// ══════════════════════════════════════════════════════════════
+
+function initEmpDashboard() {
+  showPage("employeeDashPage");
+  document.getElementById("empUserLabel").textContent = currentUser.display;
+
+  const hour = new Date().getHours();
+  let greeting = "morning";
+  if (hour >= 12 && hour < 17) greeting = "afternoon";
+  else if (hour >= 17) greeting = "evening";
+  document.getElementById("empGreeting").textContent = greeting;
+
+  renderEmpRecent();
+}
+
+function renderEmpRecent() {
+  const list = document.getElementById("empRecentList");
+  const records = getMyInspections().slice(0, 10);
+
+  if (records.length === 0) {
+    list.innerHTML = '<div class="empty-state">No inspections yet. Start your first one above!</div>';
+    return;
+  }
+
+  list.innerHTML = records.map(r => renderInspCard(r, false)).join("");
+}
+
+function backToEmpDash() {
+  initEmpDashboard();
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// INSPECTION FORM
+// ══════════════════════════════════════════════════════════════
+
+let checkState = {};     // "idx" → { status: "pass"|"fail"|"na"|null, note: "" }
+
+function showInspectionForm() {
+  showPage("inspectionPage");
+  document.getElementById("inspStep1").classList.remove("hidden");
+  document.getElementById("inspStep2").classList.add("hidden");
+  document.getElementById("inspStep3").classList.add("hidden");
+
+  // Set today
+  document.getElementById("inspDate").value = new Date().toISOString().split("T")[0];
+
+  // Pre-fill operator from session
+  document.getElementById("inspOperator").value = currentUser.display || "";
+
+  // Reset checklist
+  checkState = {};
+  CHECKLIST_ITEMS.forEach((_, i) => {
+    checkState[i] = { status: null, note: "" };
+  });
+  document.getElementById("inspComments").value = "";
+}
+
+function goToChecklist() {
+  const branch   = document.getElementById("inspBranch").value.trim();
+  const truck    = document.getElementById("inspTruck").value.trim();
+  const date     = document.getElementById("inspDate").value;
+  const operator = document.getElementById("inspOperator").value.trim();
+
+  if (!branch || !truck || !date || !operator) {
+    toast("⚠️ Please fill in Branch, Truck #, Date, and Operator.");
+    return;
+  }
+
+  // Show info bar
+  const serial = document.getElementById("inspSerial").value.trim();
+  const shift  = document.getElementById("inspShift").value;
+  document.getElementById("inspInfoBar").innerHTML =
+    `<span>📍 ${esc(branch)}</span>` +
+    `<span>🚜 Truck #${esc(truck)}</span>` +
+    (serial ? `<span>🔢 S/N ${esc(serial)}</span>` : "") +
+    `<span>📅 ${date}</span>` +
+    `<span>⏰ ${shift} Shift</span>` +
+    `<span>👤 ${esc(operator)}</span>`;
+
+  document.getElementById("inspStep1").classList.add("hidden");
+  document.getElementById("inspStep2").classList.remove("hidden");
+  renderChecklist();
+}
+
+function goBackToStep1() {
+  document.getElementById("inspStep2").classList.add("hidden");
+  document.getElementById("inspStep1").classList.remove("hidden");
+}
+
 function renderChecklist() {
   const container = document.getElementById("checklistContainer");
   container.innerHTML = "";
 
-  let globalIdx = 0;
+  CHECKLIST_ITEMS.forEach((item, i) => {
+    const s = checkState[i];
+    let statusClass = "";
+    if (s.status === "pass") statusClass = "status-pass";
+    else if (s.status === "fail") statusClass = "status-fail";
+    else if (s.status === "na") statusClass = "status-na";
 
-  SECTIONS.forEach(sec => {
-    const section = document.createElement("div");
-    section.className = "checklist-section";
+    const div = document.createElement("div");
+    div.className = `check-item ${statusClass}`;
+    div.id = `chk-${i}`;
 
-    // Count statuses for this section
-    const counts = { pass: 0, fail: 0, na: 0, pending: 0 };
-    sec.items.forEach((_, i) => {
-      const st = checkState[`${sec.id}-${i}`];
-      if (st === "pass") counts.pass++;
-      else if (st === "fail") counts.fail++;
-      else if (st === "na") counts.na++;
-      else counts.pending++;
-    });
-
-    const statusText = counts.pending === 0
-      ? (counts.fail > 0 ? `⚠️ ${counts.fail} failed` : "✅ All clear")
-      : `${counts.pending} remaining`;
-
-    // Header
-    const header = document.createElement("div");
-    header.className = `section-header ${sec.cssClass}`;
-    header.innerHTML = `
-      <span>${sec.title} <span style="font-weight:400;font-size:.78rem;opacity:.7">(${statusText})</span></span>
-      <span class="chevron ${sectionOpen[sec.id] ? 'open' : ''}">▼</span>
+    let html = `
+      <div class="check-item-top">
+        <span class="check-num">${i + 1}.</span>
+        <span class="check-label">${esc(item)}</span>
+        <div class="toggle-group">
+          <button class="toggle-btn ${s.status === 'pass' ? 'pass-active' : ''}"
+                  onclick="setStatus(${i},'pass')">Pass</button>
+          <button class="toggle-btn ${s.status === 'fail' ? 'fail-active' : ''}"
+                  onclick="setStatus(${i},'fail')">Fail</button>
+          <button class="toggle-btn ${s.status === 'na' ? 'na-active' : ''}"
+                  onclick="setStatus(${i},'na')">N/A</button>
+        </div>
+      </div>
     `;
-    header.onclick = () => {
-      sectionOpen[sec.id] = !sectionOpen[sec.id];
-      renderChecklist();
-    };
-    section.appendChild(header);
 
-    // Body
-    if (sectionOpen[sec.id]) {
-      const body = document.createElement("div");
-      body.className = "section-body";
-
-      sec.items.forEach((item, i) => {
-        globalIdx++;
-        const key = `${sec.id}-${i}`;
-        const state = checkState[key];
-
-        const row = document.createElement("div");
-        row.className = "check-row";
-        row.innerHTML = `
-          <span class="item-num">${globalIdx}.</span>
-          <span class="item-label">${item}</span>
-          <div class="toggle-group">
-            <button class="toggle-btn ${state === 'pass' ? 'pass-active' : ''}"
-                    onclick="setCheck('${key}','pass')" title="Pass">Pass</button>
-            <button class="toggle-btn ${state === 'fail' ? 'fail-active' : ''}"
-                    onclick="setCheck('${key}','fail')" title="Fail">Fail</button>
-            <button class="toggle-btn ${state === 'na' ? 'na-active' : ''}"
-                    onclick="setCheck('${key}','na')" title="N/A">N/A</button>
-          </div>
-        `;
-        body.appendChild(row);
-      });
-
-      section.appendChild(body);
+    // Show inline note field when Fail is selected
+    if (s.status === "fail") {
+      html += `
+        <div class="check-comment">
+          <input type="text" placeholder="Describe the issue (required)..."
+                 value="${esc(s.note)}"
+                 oninput="setNote(${i}, this.value)"
+                 id="note-${i}">
+        </div>
+      `;
     }
 
-    container.appendChild(section);
+    div.innerHTML = html;
+    container.appendChild(div);
   });
+
+  updateFailWarning();
 }
 
-function setCheck(key, value) {
-  checkState[key] = checkState[key] === value ? null : value;
+function setStatus(idx, val) {
+  checkState[idx].status = checkState[idx].status === val ? null : val;
+  if (checkState[idx].status !== "fail") checkState[idx].note = "";
   renderChecklist();
+
+  // Auto-focus fail note if just set to fail
+  if (checkState[idx].status === "fail") {
+    setTimeout(() => {
+      const noteEl = document.getElementById(`note-${idx}`);
+      if (noteEl) noteEl.focus();
+    }, 50);
+  }
 }
 
-// ── Submit ──────────────────────────────────────────────────────
-function submitChecklist() {
-  const branch    = document.getElementById("branch").value.trim();
-  const truckNum  = document.getElementById("truckNum").value.trim();
-  const serialNum = document.getElementById("serialNum").value.trim();
-  const inspDate  = document.getElementById("inspDate").value;
-  const shift     = document.getElementById("shift").value;
-  const operator  = document.getElementById("operator").value.trim().toUpperCase();
-  const comments  = document.getElementById("comments").value.trim();
+function setNote(idx, val) {
+  checkState[idx].note = val;
+  updateFailWarning();
+}
 
-  // Validate required fields
-  if (!branch || !truckNum || !inspDate || !operator) {
-    toast("⚠️ Please fill in Branch, Truck #, Date, and Operator Initials.");
+function updateFailWarning() {
+  const hasUnnotedFail = CHECKLIST_ITEMS.some((_, i) =>
+    checkState[i].status === "fail" && !checkState[i].note.trim()
+  );
+  const el = document.getElementById("failWarning");
+  if (hasUnnotedFail) el.classList.remove("hidden");
+  else el.classList.add("hidden");
+}
+
+function submitInspection() {
+  // Check unanswered
+  const unanswered = CHECKLIST_ITEMS.filter((_, i) => checkState[i].status === null);
+  if (unanswered.length > 0) {
+    if (!confirm(`${unanswered.length} item(s) are not checked. Submit anyway?`)) return;
+  }
+
+  // Check fail items have notes
+  const unnotedFails = CHECKLIST_ITEMS.filter((_, i) =>
+    checkState[i].status === "fail" && !checkState[i].note.trim()
+  );
+  if (unnotedFails.length > 0) {
+    toast("⚠️ Please add a comment for each failed item before submitting.");
     return;
   }
 
-  // Check for unanswered items (excluding N/A sections)
-  const unanswered = [];
-  let idx = 0;
-  SECTIONS.forEach(sec => {
-    sec.items.forEach((item, i) => {
-      idx++;
-      const st = checkState[`${sec.id}-${i}`];
-      if (st === null) unanswered.push(`#${idx} ${item}`);
-    });
-  });
-
-  if (unanswered.length > 0) {
-    const proceed = confirm(
-      `${unanswered.length} item(s) are not checked:\n\n` +
-      unanswered.slice(0, 5).join("\n") +
-      (unanswered.length > 5 ? `\n...and ${unanswered.length - 5} more` : "") +
-      `\n\nSubmit anyway?`
-    );
-    if (!proceed) return;
-  }
-
-  // Check for failures without comments
-  const failures = [];
-  idx = 0;
-  SECTIONS.forEach(sec => {
-    sec.items.forEach((item, i) => {
-      idx++;
-      if (checkState[`${sec.id}-${i}`] === "fail") {
-        failures.push(`#${idx} ${item}`);
-      }
-    });
-  });
-
-  if (failures.length > 0 && !comments) {
-    const proceed = confirm(
-      `You have ${failures.length} failed item(s) but no comments.\n` +
-      `It's recommended to describe failures.\n\nSubmit anyway?`
-    );
-    if (!proceed) return;
-  }
+  // Also check general comments if there are failures
+  const failCount = CHECKLIST_ITEMS.filter((_, i) => checkState[i].status === "fail").length;
+  const comments = document.getElementById("inspComments").value.trim();
 
   // Build record
   const record = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     timestamp: new Date().toISOString(),
-    branch,
-    truckNum,
-    serialNum,
-    inspDate,
-    shift,
-    operator,
+    username: currentUser.username,
+    displayName: currentUser.display,
+    branch: document.getElementById("inspBranch").value.trim(),
+    truckNum: document.getElementById("inspTruck").value.trim(),
+    serialNum: document.getElementById("inspSerial").value.trim(),
+    inspDate: document.getElementById("inspDate").value,
+    shift: document.getElementById("inspShift").value,
+    operator: document.getElementById("inspOperator").value.trim(),
     comments,
-    items: {}
+    items: CHECKLIST_ITEMS.map((label, i) => ({
+      label,
+      status: checkState[i].status || "skipped",
+      note: checkState[i].note || ""
+    }))
   };
 
-  SECTIONS.forEach(sec => {
-    sec.items.forEach((item, i) => {
-      record.items[`${sec.id}-${i}`] = {
-        label: item,
-        section: sec.title,
-        status: checkState[`${sec.id}-${i}`] || "skipped"
-      };
-    });
-  });
+  saveInspection(record);
 
-  // Save
-  const history = getHistory();
-  history.unshift(record);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+  // Show confirmation
+  const passCount = record.items.filter(i => i.status === "pass").length;
+  const naCount   = record.items.filter(i => i.status === "na").length;
+
+  document.getElementById("inspStep2").classList.add("hidden");
+  document.getElementById("inspStep3").classList.remove("hidden");
+  document.getElementById("confirmSummary").innerHTML =
+    `Truck #<strong>${esc(record.truckNum)}</strong> at <strong>${esc(record.branch)}</strong><br>` +
+    `<span style="color:var(--success)">✅ ${passCount} passed</span>` +
+    (failCount > 0 ? ` &nbsp; <span style="color:var(--danger)">❌ ${failCount} failed</span>` : "") +
+    (naCount > 0 ? ` &nbsp; <span style="color:var(--neutral)">⬜ ${naCount} N/A</span>` : "");
 
   toast("✅ Inspection submitted successfully!");
-  clearForm();
-  renderHistory();
 }
 
-// ── Clear ───────────────────────────────────────────────────────
-function clearForm() {
-  // Reset checks
-  SECTIONS.forEach(sec => {
-    sec.items.forEach((_, i) => {
-      checkState[`${sec.id}-${i}`] = null;
-    });
+
+// ══════════════════════════════════════════════════════════════
+// MANAGER DASHBOARD
+// ══════════════════════════════════════════════════════════════
+
+function initMgrDashboard() {
+  showPage("managerPage");
+
+  const isAdmin = currentUser.role === "admin";
+  document.getElementById("mgrTitle").textContent = isAdmin ? "Admin Dashboard" : "Management";
+  document.getElementById("mgrUserLabel").textContent = currentUser.display;
+
+  // Show/hide admin-only buttons
+  document.getElementById("adminClearBtn").classList.toggle("hidden", !isAdmin);
+
+  // Set date to today
+  document.getElementById("mgrFilterDate").value = new Date().toISOString().split("T")[0];
+  document.getElementById("mgrFilterTruck").value = "";
+  document.getElementById("mgrFilterStatus").value = "";
+
+  // Populate operator dropdown
+  const operators = [...new Set(getAllInspections().map(r => r.operator))].sort();
+  const sel = document.getElementById("mgrFilterOperator");
+  sel.innerHTML = '<option value="">All Operators</option>';
+  operators.forEach(op => {
+    sel.innerHTML += `<option value="${esc(op)}">${esc(op)}</option>`;
   });
-  document.getElementById("comments").value = "";
-  renderChecklist();
+
+  renderMgrDashboard();
 }
 
-// ── History ─────────────────────────────────────────────────────
-function getHistory() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  } catch { return []; }
-}
+function renderMgrDashboard() {
+  let records = getAllInspections();
 
-function toggleHistory() {
-  const panel = document.getElementById("historyPanel");
-  panel.classList.toggle("hidden");
-  if (!panel.classList.contains("hidden")) renderHistory();
-}
+  // Filters
+  const fDate     = document.getElementById("mgrFilterDate").value;
+  const fTruck    = document.getElementById("mgrFilterTruck").value.trim().toLowerCase();
+  const fOperator = document.getElementById("mgrFilterOperator").value;
+  const fStatus   = document.getElementById("mgrFilterStatus").value;
 
-function renderHistory() {
-  const list = document.getElementById("historyList");
-  let records = getHistory();
+  if (fDate)     records = records.filter(r => r.inspDate === fDate);
+  if (fTruck)    records = records.filter(r => r.truckNum.toLowerCase().includes(fTruck));
+  if (fOperator) records = records.filter(r => r.operator === fOperator);
+  if (fStatus) {
+    records = records.filter(r => {
+      const hasFail = r.items.some(i => i.status === "fail");
+      return fStatus === "failed" ? hasFail : !hasFail;
+    });
+  }
 
-  // Apply filters
-  const dateFilter  = document.getElementById("histFilterDate").value;
-  const truckFilter = document.getElementById("histFilterTruck").value.trim().toLowerCase();
+  // Stats (for the selected date)
+  const dayRecords = fDate ? getAllInspections().filter(r => r.inspDate === fDate) : getAllInspections();
+  const total   = dayRecords.length;
+  const drivers = new Set(dayRecords.map(r => r.operator)).size;
+  const passed  = dayRecords.filter(r => !r.items.some(i => i.status === "fail")).length;
+  const failed  = total - passed;
 
-  if (dateFilter) records = records.filter(r => r.inspDate === dateFilter);
-  if (truckFilter) records = records.filter(r => r.truckNum.toLowerCase().includes(truckFilter));
+  document.getElementById("mgrStats").innerHTML = `
+    <div class="stat-card s-total"><div class="stat-num">${total}</div><div class="stat-label">Inspections</div></div>
+    <div class="stat-card s-drivers"><div class="stat-num">${drivers}</div><div class="stat-label">Operators</div></div>
+    <div class="stat-card s-passed"><div class="stat-num">${passed}</div><div class="stat-label">Passed</div></div>
+    <div class="stat-card s-failed"><div class="stat-num">${failed}</div><div class="stat-label">Has Failures</div></div>
+  `;
 
+  // Render list
+  const list = document.getElementById("mgrList");
   if (records.length === 0) {
-    list.innerHTML = '<div class="empty-state">No inspections found.</div>';
+    list.innerHTML = `<div class="empty-state">No inspections found. Adjust your filters or check back later.</div>`;
     return;
   }
 
-  list.innerHTML = records.map(r => {
-    const items = Object.values(r.items);
-    const pass = items.filter(i => i.status === "pass").length;
-    const fail = items.filter(i => i.status === "fail").length;
-    const na   = items.filter(i => i.status === "na").length;
-    const skip = items.filter(i => i.status === "skipped").length;
-    const failedItems = items.filter(i => i.status === "fail");
+  list.innerHTML = records.map(r => renderInspCard(r, true)).join("");
+}
 
-    const dateStr = new Date(r.timestamp).toLocaleString();
 
-    return `
-      <div class="history-card">
-        <div class="hc-header">
-          <strong>Truck #${r.truckNum} — Branch ${r.branch}</strong>
-          <span class="hc-meta">${dateStr} | Shift: ${r.shift || "—"} | Operator: ${r.operator}</span>
-        </div>
-        <div class="hc-stats">
-          <span class="stat-pass">✅ ${pass} passed</span>
-          <span class="stat-fail">❌ ${fail} failed</span>
-          <span class="stat-na">⬜ ${na} N/A</span>
-          ${skip > 0 ? `<span style="color:#9ca3af">⏭️ ${skip} skipped</span>` : ""}
-        </div>
-        ${r.comments ? `<div class="hc-comments">"${r.comments}"</div>` : ""}
-        ${failedItems.length > 0 ? `
-          <details class="hc-details">
-            <summary>View failed items (${failedItems.length})</summary>
-            ${failedItems.map(fi => `<div class="hc-fail-item">❌ ${fi.label} (${fi.section})</div>`).join("")}
-          </details>
-        ` : ""}
+// ══════════════════════════════════════════════════════════════
+// SHARED INSPECTION CARD RENDERER
+// ══════════════════════════════════════════════════════════════
+
+function renderInspCard(r, showOperator) {
+  const passCount = r.items.filter(i => i.status === "pass").length;
+  const failCount = r.items.filter(i => i.status === "fail").length;
+  const naCount   = r.items.filter(i => i.status === "na").length;
+  const hasFail   = failCount > 0;
+  const failedItems = r.items.filter(i => i.status === "fail");
+
+  const time = new Date(r.timestamp).toLocaleString();
+  const opLabel = showOperator ? `<span>👤 ${esc(r.operator)}</span>` : "";
+
+  let notesHtml = "";
+  if (failedItems.length > 0 || r.comments) {
+    notesHtml = `<div class="ic-notes">`;
+    if (failedItems.length > 0) {
+      notesHtml += `<strong>Failed items:</strong>`;
+      failedItems.forEach(fi => {
+        notesHtml += `<div class="ic-fail-item">❌ ${esc(fi.label)}${fi.note ? ': ' + esc(fi.note) : ''}</div>`;
+      });
+    }
+    if (r.comments) {
+      notesHtml += `<div class="ic-comment">"${esc(r.comments)}"</div>`;
+    }
+    notesHtml += `</div>`;
+  }
+
+  return `
+    <div class="insp-card ${hasFail ? 'card-fail' : 'card-pass'}">
+      <div class="ic-row1">
+        <span class="ic-title">Truck #${esc(r.truckNum)} — ${esc(r.branch)}</span>
+        <span class="ic-badge ${hasFail ? 'badge-fail' : 'badge-pass'}">${hasFail ? '⚠️ Failed' : '✅ Passed'}</span>
       </div>
-    `;
-  }).join("");
+      <div class="ic-meta">
+        <span>📅 ${r.inspDate}</span>
+        <span>⏰ ${r.shift || '—'} Shift</span>
+        ${r.serialNum ? `<span>🔢 ${esc(r.serialNum)}</span>` : ""}
+        ${opLabel}
+        <span style="color:#9ca3af">${time}</span>
+      </div>
+      <div class="ic-stats">
+        <span class="st-pass">✅ ${passCount}</span>
+        <span class="st-fail">❌ ${failCount}</span>
+        <span class="st-na">⬜ ${naCount}</span>
+      </div>
+      ${notesHtml}
+    </div>
+  `;
 }
 
-function clearHistory() {
-  if (confirm("Delete ALL inspection history? This cannot be undone.")) {
-    localStorage.removeItem(STORAGE_KEY);
-    renderHistory();
-    toast("🗑️ History cleared.");
-  }
-}
 
-// ── Export CSV ───────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// CSV EXPORT
+// ══════════════════════════════════════════════════════════════
+
 function exportCSV() {
-  const records = getHistory();
-  if (records.length === 0) {
-    toast("⚠️ No inspections to export.");
-    return;
-  }
-
-  // Build CSV
-  const allItemKeys = [];
-  SECTIONS.forEach(sec => {
-    sec.items.forEach((item, i) => {
-      allItemKeys.push({ key: `${sec.id}-${i}`, label: item, section: sec.title });
-    });
-  });
+  const records = getAllInspections();
+  if (records.length === 0) { toast("⚠️ No data to export."); return; }
 
   const headers = [
     "Date", "Timestamp", "Branch", "Truck #", "Serial #", "Shift", "Operator",
-    ...allItemKeys.map(k => k.label),
-    "Comments"
+    ...CHECKLIST_ITEMS,
+    "Failure Notes", "Comments"
   ];
 
   const rows = records.map(r => {
+    const failNotes = r.items
+      .filter(i => i.status === "fail" && i.note)
+      .map(i => `${i.label}: ${i.note}`)
+      .join("; ");
+
     return [
-      r.inspDate,
-      r.timestamp,
-      r.branch,
-      r.truckNum,
-      r.serialNum || "",
-      r.shift || "",
-      r.operator,
-      ...allItemKeys.map(k => {
-        const item = r.items[k.key];
-        return item ? item.status : "";
-      }),
-      r.comments || ""
+      r.inspDate, r.timestamp, r.branch, r.truckNum, r.serialNum || "",
+      r.shift || "", r.operator,
+      ...r.items.map(i => i.status),
+      failNotes, r.comments || ""
     ];
   });
 
-  const csvContent = [headers, ...rows]
-    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+  const csv = [headers, ...rows]
+    .map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))
     .join("\n");
 
-  // Download
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = `forklift-inspections-${new Date().toISOString().split("T")[0]}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-
   toast("📤 CSV exported!");
 }
 
-// ── Toast ───────────────────────────────────────────────────────
+
+// ══════════════════════════════════════════════════════════════
+// ADMIN: CLEAR ALL
+// ══════════════════════════════════════════════════════════════
+
+function clearAllData() {
+  if (currentUser.role !== "admin") { toast("⛔ Admin only."); return; }
+  if (!confirm("⚠️ Delete ALL inspection data?\n\nThis cannot be undone.")) return;
+  clearAllInspections();
+  renderMgrDashboard();
+  toast("🗑️ All inspection data cleared.");
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// UTILITIES
+// ══════════════════════════════════════════════════════════════
+
+function esc(str) {
+  const d = document.createElement("div");
+  d.textContent = str || "";
+  return d.innerHTML;
+}
+
 function toast(msg) {
-  let el = document.getElementById("toastEl");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "toastEl";
-    el.className = "toast";
-    document.body.appendChild(el);
-  }
+  const el = document.getElementById("toastEl");
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(el._timer);

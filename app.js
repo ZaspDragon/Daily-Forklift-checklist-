@@ -701,6 +701,480 @@ function clearAllData() {
 
 
 // ══════════════════════════════════════════════════════════════
+// WEEKLY REPORT — matches original Chadwell Supply paper form
+// ══════════════════════════════════════════════════════════════
+
+function toggleReportPanel() {
+  const panel = document.getElementById("reportPanel");
+  const isHidden = panel.classList.contains("hidden");
+  panel.classList.toggle("hidden");
+
+  if (isHidden) {
+    // Default to Monday of current week
+    const today = new Date();
+    const day = today.getDay();
+    const diff = day === 0 ? 6 : day - 1; // Monday=0
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - diff);
+    document.getElementById("reportWeekStart").value = monday.toISOString().split("T")[0];
+
+    // Populate truck dropdown
+    const trucks = [...new Set(getAllInspections().map(r => r.truckNum))].sort();
+    const sel = document.getElementById("reportTruck");
+    sel.innerHTML = '<option value="">All Trucks (one page each)</option>';
+    trucks.forEach(t => {
+      sel.innerHTML += `<option value="${esc(t)}">${esc(t)}</option>`;
+    });
+  }
+}
+
+function generateWeeklyReport() {
+  const startStr = document.getElementById("reportWeekStart").value;
+  if (!startStr) { toast("⚠️ Select a week start date."); return; }
+
+  const start = new Date(startStr + "T00:00:00");
+  // Build array of 7 dates (Mon–Sun)
+  const weekDates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    weekDates.push(d.toISOString().split("T")[0]);
+  }
+
+  const allRecords = getAllInspections().filter(r => weekDates.includes(r.inspDate));
+  if (allRecords.length === 0) { toast("⚠️ No inspections found for that week."); return; }
+
+  const selectedTruck = document.getElementById("reportTruck").value;
+  let truckGroups;
+  if (selectedTruck) {
+    const recs = allRecords.filter(r => r.truckNum === selectedTruck);
+    if (recs.length === 0) { toast("⚠️ No inspections for that truck this week."); return; }
+    truckGroups = [{ truckNum: selectedTruck, records: recs }];
+  } else {
+    const trucks = [...new Set(allRecords.map(r => r.truckNum))].sort();
+    truckGroups = trucks.map(t => ({ truckNum: t, records: allRecords.filter(r => r.truckNum === t) }));
+  }
+
+  // Build the report HTML
+  const pages = truckGroups.map(group => buildReportPage(group, weekDates, startStr)).join("");
+  const reportHTML = buildReportShell(pages);
+
+  // Open in new window
+  const win = window.open("", "_blank");
+  if (!win) { toast("⚠️ Pop-up blocked. Please allow pop-ups for this site."); return; }
+  win.document.write(reportHTML);
+  win.document.close();
+}
+
+function buildReportShell(pagesHTML) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chadwell Supply — Weekly Forklift Inspection Report</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', Arial, sans-serif;
+    font-size: 11px;
+    color: #1f2937;
+    background: #fff;
+    padding: 0;
+  }
+
+  .report-page {
+    width: 100%;
+    max-width: 10.5in;
+    margin: 0 auto 30px;
+    padding: 0.4in 0.35in;
+    background: #fff;
+  }
+
+  /* Header */
+  .rpt-header {
+    text-align: center;
+    margin-bottom: 12px;
+    border-bottom: 2px solid #1a56db;
+    padding-bottom: 10px;
+  }
+  .rpt-logo {
+    font-family: 'Georgia', serif;
+    font-size: 26px;
+    font-weight: 900;
+    color: #1a56db;
+    letter-spacing: -0.5px;
+  }
+  .rpt-logo span {
+    font-size: 14px;
+    font-weight: 600;
+    display: block;
+    color: #4b5563;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: -2px;
+  }
+  .rpt-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-top: 4px;
+    color: #1f2937;
+  }
+
+  /* Info row */
+  .rpt-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 24px;
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+  .rpt-info .field {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .rpt-info .field b { font-weight: 700; white-space: nowrap; }
+  .rpt-info .field .val {
+    border-bottom: 1px solid #374151;
+    min-width: 80px;
+    padding: 0 4px 1px;
+    font-weight: 600;
+  }
+
+  /* Instruction */
+  .rpt-instr {
+    font-size: 9.5px;
+    color: #6b7280;
+    text-align: center;
+    margin-bottom: 6px;
+    font-style: italic;
+  }
+
+  /* Table */
+  .rpt-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+    font-size: 10.5px;
+  }
+  .rpt-table th, .rpt-table td {
+    border: 1px solid #9ca3af;
+    padding: 4px 5px;
+    text-align: center;
+    vertical-align: middle;
+  }
+  .rpt-table th {
+    background: #1e3a5f;
+    color: #fff;
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.3px;
+  }
+  .rpt-table th.day-header { min-width: 62px; }
+  .rpt-table th.item-header {
+    text-align: left;
+    min-width: 200px;
+    background: #1a56db;
+  }
+
+  .rpt-table .section-row td {
+    background: #e5e7eb;
+    font-weight: 800;
+    font-size: 10.5px;
+    text-align: center;
+    letter-spacing: 0.3px;
+    padding: 5px;
+    border-top: 2px solid #6b7280;
+  }
+
+  .rpt-table .item-label {
+    text-align: left;
+    font-weight: 500;
+    padding-left: 10px;
+    background: #f9fafb;
+  }
+
+  .rpt-table .cell-pass {
+    color: #1f2937;
+    font-weight: 700;
+    font-size: 11px;
+  }
+  .rpt-table .cell-fail {
+    color: #dc2626;
+    font-weight: 800;
+    font-size: 12px;
+    background: #fee2e2;
+  }
+  .rpt-table .cell-na {
+    color: #9ca3af;
+    font-size: 10px;
+  }
+  .rpt-table .cell-empty {
+    background: #f3f4f6;
+  }
+  .rpt-table .cell-slash {
+    color: #d1d5db;
+    font-size: 16px;
+    background: #f3f4f6;
+  }
+
+  /* Comments */
+  .rpt-comments {
+    border: 1px solid #9ca3af;
+    padding: 8px 10px;
+    min-height: 60px;
+    font-size: 10.5px;
+    margin-bottom: 8px;
+  }
+  .rpt-comments b { display: block; margin-bottom: 4px; }
+  .rpt-comments .fail-note { color: #dc2626; margin-bottom: 2px; }
+  .rpt-comments .comment-note { color: #374151; font-style: italic; }
+
+  /* Footer */
+  .rpt-footer {
+    font-size: 9px;
+    color: #9ca3af;
+    text-align: center;
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  /* Print button */
+  .print-bar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: #1e3a5f;
+    color: #fff;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 100;
+    box-shadow: 0 2px 10px rgba(0,0,0,.3);
+    font-family: 'Inter', sans-serif;
+  }
+  .print-bar button {
+    padding: 8px 24px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #3b82f6;
+    color: #fff;
+  }
+  .print-bar button:hover { background: #2563eb; }
+  .print-bar .info { font-size: 13px; }
+  .print-spacer { height: 56px; }
+
+  @media print {
+    .print-bar, .print-spacer { display: none !important; }
+    body { padding: 0; }
+    .report-page {
+      margin: 0;
+      padding: 0.3in 0.25in;
+      page-break-after: always;
+      max-width: 100%;
+    }
+    .report-page:last-child { page-break-after: auto; }
+  }
+
+  @page {
+    size: landscape;
+    margin: 0.2in;
+  }
+</style>
+</head>
+<body>
+  <div class="print-bar">
+    <button onclick="window.print()">🖨️ Print / Save PDF</button>
+    <span class="info">Tip: Use landscape orientation. Save as PDF to email to your warehouse admin.</span>
+  </div>
+  <div class="print-spacer"></div>
+  ${pagesHTML}
+</body>
+</html>`;
+}
+
+function buildReportPage(group, weekDates, startStr) {
+  const records = group.records;
+  const truckNum = group.truckNum;
+
+  // Get info from first record
+  const sample = records[0];
+  const branch = sample.branch || "—";
+  const serialNum = sample.serialNum || "";
+  const shift = sample.shift || "";
+
+  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  // Format start date nicely
+  const sd = new Date(startStr + "T12:00:00");
+  const startFormatted = sd.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "2-digit" });
+
+  // Checklist sections matching original form
+  const sections = [
+    {
+      title: "Motor-Off Checks",
+      items: [
+        "Forks",
+        "Tires",
+        "Hydraulic leaks",
+        "Battery / propane",
+        "Mast / chains",
+        "Seatbelt",
+        "Data plate",
+        "Safety decals",
+        "General damage",
+        "Floor area clear"
+      ]
+    },
+    {
+      title: "Motor-On Checks",
+      items: [
+        "Horn",
+        "Lights",
+        "Backup alarm",
+        "Brakes",
+        "Steering"
+      ]
+    }
+  ];
+
+  // Build day-indexed lookup: dayIndex → record (use latest per day)
+  const dayRecords = {};
+  weekDates.forEach((dateStr, i) => {
+    const dayRecs = records.filter(r => r.inspDate === dateStr).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    if (dayRecs.length > 0) dayRecords[i] = dayRecs[0];
+  });
+
+  // Collect all failure notes and comments for the week
+  const allNotes = [];
+  weekDates.forEach((dateStr, i) => {
+    const rec = dayRecords[i];
+    if (!rec) return;
+    const dayLabel = dayNames[i] + " " + dateStr;
+    rec.items.forEach(item => {
+      if (item.status === "fail") {
+        allNotes.push({ day: dayNames[i], item: item.label, note: item.note || "(no details)", type: "fail" });
+      }
+    });
+    if (rec.comments) {
+      allNotes.push({ day: dayNames[i], item: "", note: rec.comments, type: "comment" });
+    }
+  });
+
+  // Build table rows
+  let tableRows = "";
+
+  // Day header row
+  tableRows += "<tr>";
+  tableRows += '<th class="item-header">Inspection Item</th>';
+  dayNames.forEach((day, i) => {
+    const dateStr = weekDates[i];
+    const d = new Date(dateStr + "T12:00:00");
+    const shortDate = (d.getMonth() + 1) + "/" + d.getDate();
+    tableRows += `<th class="day-header">${day}<br><span style="font-weight:400;font-size:9px">${shortDate}</span></th>`;
+  });
+  tableRows += "</tr>";
+
+  // Section + item rows
+  sections.forEach(section => {
+    // Section header row
+    tableRows += `<tr class="section-row"><td colspan="8">${escHtml(section.title)}</td></tr>`;
+
+    section.items.forEach(itemLabel => {
+      tableRows += "<tr>";
+      tableRows += `<td class="item-label">${escHtml(itemLabel)}</td>`;
+
+      dayNames.forEach((_, dayIdx) => {
+        const rec = dayRecords[dayIdx];
+        if (!rec) {
+          tableRows += '<td class="cell-empty"></td>';
+          return;
+        }
+        const found = rec.items.find(it => it.label === itemLabel);
+        if (!found || found.status === "skipped") {
+          tableRows += '<td class="cell-empty"></td>';
+        } else if (found.status === "pass") {
+          // Show operator initials like the original form
+          const initials = getInitials(rec.operator);
+          tableRows += `<td class="cell-pass">${escHtml(initials)}</td>`;
+        } else if (found.status === "fail") {
+          const initials = getInitials(rec.operator);
+          tableRows += `<td class="cell-fail">✗ ${escHtml(initials)}</td>`;
+        } else if (found.status === "na") {
+          tableRows += '<td class="cell-na">N/A</td>';
+        } else {
+          tableRows += '<td class="cell-empty"></td>';
+        }
+      });
+
+      tableRows += "</tr>";
+    });
+  });
+
+  // Comments section
+  let commentsHTML = "<b>Comments / Failure Notes:</b>";
+  if (allNotes.length > 0) {
+    allNotes.forEach(n => {
+      if (n.type === "fail") {
+        commentsHTML += `<div class="fail-note">⚠ ${escHtml(n.day)} — ${escHtml(n.item)}: ${escHtml(n.note)}</div>`;
+      } else {
+        commentsHTML += `<div class="comment-note">${escHtml(n.day)}: "${escHtml(n.note)}"</div>`;
+      }
+    });
+  } else {
+    commentsHTML += '<div style="color:#9ca3af;margin-top:4px">No failures or comments this week.</div>';
+  }
+
+  return `
+  <div class="report-page">
+    <div class="rpt-header">
+      <div class="rpt-logo">Chadwell<span>SUPPLY</span></div>
+      <div class="rpt-title">Daily Pre-use Inspection Checklist</div>
+    </div>
+
+    <div class="rpt-info">
+      <div class="field"><b>Branch:</b> <span class="val">${escHtml(branch)}</span></div>
+      <div class="field"><b>Truck #:</b> <span class="val">${escHtml(truckNum)}</span></div>
+      <div class="field"><b>Serial #:</b> <span class="val">${escHtml(serialNum || "—")}</span></div>
+      <div class="field"><b>Shift:</b> <span class="val">${escHtml(shift || "—")}</span></div>
+      <div class="field"><b>Start Date:</b> <span class="val">${escHtml(startFormatted)}</span></div>
+    </div>
+
+    <div class="rpt-instr">Enter initials if item passes. For failures: mark with ✗ and describe in comments.</div>
+
+    <table class="rpt-table">
+      ${tableRows}
+    </table>
+
+    <div class="rpt-comments">${commentsHTML}</div>
+
+    <div class="rpt-footer">
+      Generated ${new Date().toLocaleString()} — Chadwell Supply Forklift Inspection System
+    </div>
+  </div>`;
+}
+
+function getInitials(name) {
+  if (!name) return "—";
+  return name.split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 3);
+}
+
+function escHtml(str) {
+  const d = document.createElement("div");
+  d.textContent = str || "";
+  return d.innerHTML;
+}
+
+
+// ══════════════════════════════════════════════════════════════
 // UTILITIES
 // ══════════════════════════════════════════════════════════════
 

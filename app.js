@@ -1,18 +1,35 @@
 /* ═══════════════════════════════════════════════════════════════
    Chadwell Supply — Daily Forklift Inspection System
    Role-based: Employee / Manager / Admin
+   Admin can create/edit/delete users
    localStorage now — Firebase-ready architecture
    ═══════════════════════════════════════════════════════════════ */
 
 // ══════════════════════════════════════════════════════════════
-// AUTH — swap this section for Firebase Auth later
+// USER MANAGEMENT — swap for Firebase Auth later
 // ══════════════════════════════════════════════════════════════
 
-const USERS = [
+const DEFAULT_USERS = [
   { username: "employee", pin: "1234", role: "employee", display: "Employee" },
   { username: "manager",  pin: "2468", role: "manager",  display: "Manager" },
   { username: "admin",    pin: "9999", role: "admin",    display: "Admin" }
 ];
+
+const USERS_KEY = "forklift_users";
+
+function getUsers() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(USERS_KEY));
+    if (stored && stored.length > 0) return stored;
+  } catch {}
+  // First run — seed defaults
+  localStorage.setItem(USERS_KEY, JSON.stringify(DEFAULT_USERS));
+  return [...DEFAULT_USERS];
+}
+
+function saveUsers(users) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
 
 let currentUser = null;  // { username, role, display }
 
@@ -21,7 +38,7 @@ function doLogin() {
   const pin  = document.getElementById("loginPin").value.trim();
   const errEl = document.getElementById("loginError");
 
-  const match = USERS.find(u => u.username === user && u.pin === pin);
+  const match = getUsers().find(u => u.username.toLowerCase() === user && u.pin === pin);
   if (!match) {
     errEl.textContent = "Invalid username or PIN. Please try again.";
     errEl.classList.remove("hidden");
@@ -31,13 +48,14 @@ function doLogin() {
   errEl.classList.add("hidden");
   currentUser = { username: match.username, role: match.role, display: match.display };
   sessionStorage.setItem("forklift_session", JSON.stringify(currentUser));
-
   routeAfterLogin();
 }
 
 function doLogout() {
   currentUser = null;
   sessionStorage.removeItem("forklift_session");
+  document.getElementById("loginUser").value = "";
+  document.getElementById("loginPin").value = "";
   showPage("loginPage");
 }
 
@@ -45,8 +63,9 @@ function restoreSession() {
   try {
     const s = JSON.parse(sessionStorage.getItem("forklift_session"));
     if (s && s.username && s.role) {
-      currentUser = s;
-      return true;
+      // Verify user still exists
+      const match = getUsers().find(u => u.username === s.username);
+      if (match) { currentUser = s; return true; }
     }
   } catch {}
   return false;
@@ -54,7 +73,6 @@ function restoreSession() {
 
 function routeAfterLogin() {
   if (!currentUser) { showPage("loginPage"); return; }
-
   if (currentUser.role === "employee") {
     initEmpDashboard();
   } else {
@@ -62,7 +80,7 @@ function routeAfterLogin() {
   }
 }
 
-// Allow Enter key to submit login
+// Enter key handlers
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("loginPin").addEventListener("keydown", e => {
     if (e.key === "Enter") doLogin();
@@ -70,16 +88,12 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("loginUser").addEventListener("keydown", e => {
     if (e.key === "Enter") document.getElementById("loginPin").focus();
   });
-
-  // Restore session
-  if (restoreSession()) {
-    routeAfterLogin();
-  }
+  if (restoreSession()) routeAfterLogin();
 });
 
 
 // ══════════════════════════════════════════════════════════════
-// DATA — swap this section for Firestore later
+// DATA — swap for Firestore later
 // ══════════════════════════════════════════════════════════════
 
 const STORAGE_KEY = "forklift_inspections_v2";
@@ -106,7 +120,7 @@ function getMyInspections() {
 
 
 // ══════════════════════════════════════════════════════════════
-// CHECKLIST ITEMS — Brandon's 15-item list
+// CHECKLIST ITEMS — 15-item list
 // ══════════════════════════════════════════════════════════════
 
 const CHECKLIST_ITEMS = [
@@ -164,7 +178,6 @@ function renderEmpRecent() {
     list.innerHTML = '<div class="empty-state">No inspections yet. Start your first one above!</div>';
     return;
   }
-
   list.innerHTML = records.map(r => renderInspCard(r, false)).join("");
 }
 
@@ -177,7 +190,7 @@ function backToEmpDash() {
 // INSPECTION FORM
 // ══════════════════════════════════════════════════════════════
 
-let checkState = {};     // "idx" → { status: "pass"|"fail"|"na"|null, note: "" }
+let checkState = {};
 
 function showInspectionForm() {
   showPage("inspectionPage");
@@ -185,13 +198,9 @@ function showInspectionForm() {
   document.getElementById("inspStep2").classList.add("hidden");
   document.getElementById("inspStep3").classList.add("hidden");
 
-  // Set today
   document.getElementById("inspDate").value = new Date().toISOString().split("T")[0];
-
-  // Pre-fill operator from session
   document.getElementById("inspOperator").value = currentUser.display || "";
 
-  // Reset checklist
   checkState = {};
   CHECKLIST_ITEMS.forEach((_, i) => {
     checkState[i] = { status: null, note: "" };
@@ -210,7 +219,6 @@ function goToChecklist() {
     return;
   }
 
-  // Show info bar
   const serial = document.getElementById("inspSerial").value.trim();
   const shift  = document.getElementById("inspShift").value;
   document.getElementById("inspInfoBar").innerHTML =
@@ -261,7 +269,6 @@ function renderChecklist() {
       </div>
     `;
 
-    // Show inline note field when Fail is selected
     if (s.status === "fail") {
       html += `
         <div class="check-comment">
@@ -285,7 +292,6 @@ function setStatus(idx, val) {
   if (checkState[idx].status !== "fail") checkState[idx].note = "";
   renderChecklist();
 
-  // Auto-focus fail note if just set to fail
   if (checkState[idx].status === "fail") {
     setTimeout(() => {
       const noteEl = document.getElementById(`note-${idx}`);
@@ -309,13 +315,11 @@ function updateFailWarning() {
 }
 
 function submitInspection() {
-  // Check unanswered
   const unanswered = CHECKLIST_ITEMS.filter((_, i) => checkState[i].status === null);
   if (unanswered.length > 0) {
     if (!confirm(`${unanswered.length} item(s) are not checked. Submit anyway?`)) return;
   }
 
-  // Check fail items have notes
   const unnotedFails = CHECKLIST_ITEMS.filter((_, i) =>
     checkState[i].status === "fail" && !checkState[i].note.trim()
   );
@@ -324,11 +328,9 @@ function submitInspection() {
     return;
   }
 
-  // Also check general comments if there are failures
   const failCount = CHECKLIST_ITEMS.filter((_, i) => checkState[i].status === "fail").length;
   const comments = document.getElementById("inspComments").value.trim();
 
-  // Build record
   const record = {
     id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     timestamp: new Date().toISOString(),
@@ -350,7 +352,6 @@ function submitInspection() {
 
   saveInspection(record);
 
-  // Show confirmation
   const passCount = record.items.filter(i => i.status === "pass").length;
   const naCount   = record.items.filter(i => i.status === "na").length;
 
@@ -367,7 +368,7 @@ function submitInspection() {
 
 
 // ══════════════════════════════════════════════════════════════
-// MANAGER DASHBOARD
+// MANAGER / ADMIN DASHBOARD
 // ══════════════════════════════════════════════════════════════
 
 function initMgrDashboard() {
@@ -377,15 +378,23 @@ function initMgrDashboard() {
   document.getElementById("mgrTitle").textContent = isAdmin ? "Admin Dashboard" : "Management";
   document.getElementById("mgrUserLabel").textContent = currentUser.display;
 
-  // Show/hide admin-only buttons
+  // Show/hide admin-only elements
   document.getElementById("adminClearBtn").classList.toggle("hidden", !isAdmin);
+  document.getElementById("adminTabs").classList.toggle("hidden", !isAdmin);
 
-  // Set date to today
+  // If not admin, make sure inspections tab is showing
+  if (!isAdmin) {
+    document.getElementById("tabContentInspections").classList.remove("hidden");
+    document.getElementById("tabContentUsers").classList.add("hidden");
+  } else {
+    switchTab("inspections");
+  }
+
+  // Filters
   document.getElementById("mgrFilterDate").value = new Date().toISOString().split("T")[0];
   document.getElementById("mgrFilterTruck").value = "";
   document.getElementById("mgrFilterStatus").value = "";
 
-  // Populate operator dropdown
   const operators = [...new Set(getAllInspections().map(r => r.operator))].sort();
   const sel = document.getElementById("mgrFilterOperator");
   sel.innerHTML = '<option value="">All Operators</option>';
@@ -396,10 +405,31 @@ function initMgrDashboard() {
   renderMgrDashboard();
 }
 
+function switchTab(tab) {
+  const tabBtns = document.querySelectorAll(".tab-btn");
+  tabBtns.forEach(b => b.classList.remove("active"));
+
+  if (tab === "users") {
+    document.getElementById("tabUsers").classList.add("active");
+    document.getElementById("tabContentInspections").classList.add("hidden");
+    document.getElementById("tabContentUsers").classList.remove("hidden");
+    // Also hide the filter bar and stats for cleaner look
+    document.querySelector(".filter-bar").classList.add("hidden");
+    document.querySelector(".stats-row").classList.add("hidden");
+    renderUsersList();
+  } else {
+    document.getElementById("tabInspections").classList.add("active");
+    document.getElementById("tabContentInspections").classList.remove("hidden");
+    document.getElementById("tabContentUsers").classList.add("hidden");
+    document.querySelector(".filter-bar").classList.remove("hidden");
+    document.querySelector(".stats-row").classList.remove("hidden");
+    renderMgrDashboard();
+  }
+}
+
 function renderMgrDashboard() {
   let records = getAllInspections();
 
-  // Filters
   const fDate     = document.getElementById("mgrFilterDate").value;
   const fTruck    = document.getElementById("mgrFilterTruck").value.trim().toLowerCase();
   const fOperator = document.getElementById("mgrFilterOperator").value;
@@ -415,7 +445,7 @@ function renderMgrDashboard() {
     });
   }
 
-  // Stats (for the selected date)
+  // Stats
   const dayRecords = fDate ? getAllInspections().filter(r => r.inspDate === fDate) : getAllInspections();
   const total   = dayRecords.length;
   const drivers = new Set(dayRecords.map(r => r.operator)).size;
@@ -429,19 +459,141 @@ function renderMgrDashboard() {
     <div class="stat-card s-failed"><div class="stat-num">${failed}</div><div class="stat-label">Has Failures</div></div>
   `;
 
-  // Render list
   const list = document.getElementById("mgrList");
   if (records.length === 0) {
     list.innerHTML = `<div class="empty-state">No inspections found. Adjust your filters or check back later.</div>`;
     return;
   }
-
   list.innerHTML = records.map(r => renderInspCard(r, true)).join("");
 }
 
 
 // ══════════════════════════════════════════════════════════════
-// SHARED INSPECTION CARD RENDERER
+// USER MANAGEMENT (Admin only)
+// ══════════════════════════════════════════════════════════════
+
+function createUser() {
+  if (currentUser.role !== "admin") { toast("⛔ Admin only."); return; }
+
+  const display  = document.getElementById("newUserName").value.trim();
+  const username = document.getElementById("newUserUsername").value.trim().toLowerCase();
+  const pin      = document.getElementById("newUserPin").value.trim();
+  const role     = document.getElementById("newUserRole").value;
+
+  if (!display || !username || !pin) {
+    toast("⚠️ Please fill in Display Name, Username, and PIN.");
+    return;
+  }
+
+  if (pin.length < 4) {
+    toast("⚠️ PIN must be at least 4 digits.");
+    return;
+  }
+
+  const users = getUsers();
+
+  // Check for duplicate username
+  if (users.some(u => u.username.toLowerCase() === username)) {
+    toast("⚠️ Username already exists. Choose a different one.");
+    return;
+  }
+
+  users.push({ username, pin, role, display });
+  saveUsers(users);
+
+  // Clear form
+  document.getElementById("newUserName").value = "";
+  document.getElementById("newUserUsername").value = "";
+  document.getElementById("newUserPin").value = "";
+  document.getElementById("newUserRole").value = "employee";
+
+  toast(`✅ User "${display}" created!`);
+  renderUsersList();
+}
+
+function renderUsersList() {
+  const container = document.getElementById("usersList");
+  const users = getUsers();
+
+  if (users.length === 0) {
+    container.innerHTML = '<div class="empty-state">No users found.</div>';
+    return;
+  }
+
+  container.innerHTML = users.map(u => {
+    const initials = u.display.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+    const isSelf = u.username === currentUser.username;
+
+    return `
+      <div class="user-card">
+        <div class="user-avatar role-${u.role}">${initials}</div>
+        <div class="user-info">
+          <div class="user-display">${esc(u.display)} ${isSelf ? '<span style="color:var(--primary);font-size:.75rem">(you)</span>' : ''}</div>
+          <div class="user-meta">@${esc(u.username)} &nbsp;·&nbsp; PIN: ${esc(u.pin)}</div>
+        </div>
+        <span class="role-badge rb-${u.role}">${u.role}</span>
+        <div class="user-actions">
+          ${!isSelf ? `<button class="btn btn-sm btn-outline" onclick="editUser('${esc(u.username)}')">✏️</button>` : ''}
+          ${!isSelf ? `<button class="btn btn-sm btn-danger" onclick="deleteUser('${esc(u.username)}')">🗑️</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function editUser(username) {
+  if (currentUser.role !== "admin") return;
+
+  const users = getUsers();
+  const user = users.find(u => u.username === username);
+  if (!user) { toast("User not found."); return; }
+
+  const newDisplay = prompt("Display Name:", user.display);
+  if (newDisplay === null) return;  // cancelled
+  if (!newDisplay.trim()) { toast("⚠️ Name can't be empty."); return; }
+
+  const newPin = prompt("New PIN (leave blank to keep current):", "");
+  if (newPin !== null && newPin !== "" && newPin.length < 4) {
+    toast("⚠️ PIN must be at least 4 digits.");
+    return;
+  }
+
+  const newRole = prompt("Role (employee / manager / admin):", user.role);
+  if (newRole === null) return;
+  if (!["employee", "manager", "admin"].includes(newRole.toLowerCase().trim())) {
+    toast("⚠️ Role must be employee, manager, or admin.");
+    return;
+  }
+
+  // Apply changes
+  user.display = newDisplay.trim();
+  if (newPin && newPin.trim()) user.pin = newPin.trim();
+  user.role = newRole.toLowerCase().trim();
+
+  saveUsers(users);
+  toast(`✅ User "${user.display}" updated!`);
+  renderUsersList();
+}
+
+function deleteUser(username) {
+  if (currentUser.role !== "admin") return;
+  if (username === currentUser.username) { toast("⚠️ Can't delete yourself."); return; }
+
+  const users = getUsers();
+  const user = users.find(u => u.username === username);
+  if (!user) return;
+
+  if (!confirm(`Delete user "${user.display}" (@${user.username})?\n\nThis can't be undone.`)) return;
+
+  const updated = users.filter(u => u.username !== username);
+  saveUsers(updated);
+  toast(`🗑️ User "${user.display}" deleted.`);
+  renderUsersList();
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// SHARED INSPECTION CARD
 // ══════════════════════════════════════════════════════════════
 
 function renderInspCard(r, showOperator) {
@@ -512,7 +664,6 @@ function exportCSV() {
       .filter(i => i.status === "fail" && i.note)
       .map(i => `${i.label}: ${i.note}`)
       .join("; ");
-
     return [
       r.inspDate, r.timestamp, r.branch, r.truckNum, r.serialNum || "",
       r.shift || "", r.operator,

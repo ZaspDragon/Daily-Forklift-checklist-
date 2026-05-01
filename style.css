@@ -466,6 +466,83 @@ body {
 }
 
 /* ══════════════════════════════════════════════════
+   TABS (Admin)
+   ══════════════════════════════════════════════════ */
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 4px;
+  box-shadow: var(--shadow);
+  margin-bottom: 16px;
+}
+.tab-btn {
+  flex: 1;
+  padding: 10px 16px;
+  font-size: .88rem;
+  font-weight: 600;
+  font-family: inherit;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+.tab-btn:hover { background: var(--neutral-bg); }
+.tab-btn.active {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(26,86,219,.3);
+}
+
+/* ══════════════════════════════════════════════════
+   USER MANAGEMENT CARDS
+   ══════════════════════════════════════════════════ */
+.user-card {
+  background: var(--card);
+  border: 1.5px solid #e5e7eb;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.user-card .user-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.user-avatar.role-employee { background: var(--primary); }
+.user-avatar.role-manager  { background: #7c3aed; }
+.user-avatar.role-admin    { background: #dc2626; }
+.user-card .user-info { flex: 1; min-width: 120px; }
+.user-card .user-info .user-display { font-weight: 700; font-size: .92rem; }
+.user-card .user-info .user-meta { font-size: .78rem; color: var(--text-muted); }
+.user-card .role-badge {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+.role-badge.rb-employee { background: var(--primary-lt); color: var(--primary); }
+.role-badge.rb-manager  { background: #ede9fe; color: #7c3aed; }
+.role-badge.rb-admin    { background: var(--danger-bg); color: var(--danger); }
+.user-card .user-actions { display: flex; gap: 6px; }
+
+/* ══════════════════════════════════════════════════
    TOAST
    ══════════════════════════════════════════════════ */
 .toast {

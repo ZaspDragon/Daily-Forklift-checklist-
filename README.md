@@ -31,10 +31,24 @@
 - Filter by: Date, Truck #, Operator, Status
 - Export all data as CSV
 - Dashboard stats: total inspections, operators, passed, failed
+- Equipment/lift profile dashboard with branch, type, status, QR links, open defects, repair history, and hour meter summaries
+- CSV exports for daily inspections, inspection history, defects, repairs, hour meters, equipment, and audit logs
 
 ### Admin View
 - Everything in Management view, plus:
 - **Clear All History** button (admin-only)
+- Supervisor/admin repair closeout and return-to-service approval for critical defects
+
+### QR Lift Status
+- Each lift profile has a QR URL in the format `?lift=OH01-RT-01`
+- Public QR scans show read-only lift status, today's inspection state, open defects, repair history, and hour meter summary
+- Signed-in users can start an inspection from the scanned lift page
+
+### Safety Records
+- Hour meter reading is required before inspection submission
+- Failed checklist items create defect records
+- Critical failures automatically mark the lift `Out of Service`
+- Audit log records inspection, defect, repair, status, and override actions
 
 ### Checklist Items
 1. Forks
@@ -66,6 +80,11 @@
 - `localStorage` for data persistence
 - `sessionStorage` for login session
 - GitHub Pages for hosting
+
+## Storage Keys
+- Existing keys preserved: `forklift_users`, `forklift_inspections_v2`
+- Added compatible keys: `forklift_equipmentProfiles_v1`, `forklift_inspections_v1`, `forklift_defects_v1`, `forklift_repairs_v1`, `forklift_hourMeters_v1`, `forklift_auditLog_v1`
+- The QR/equipment extension does not clear or rename existing saved inspection data
 
 ## Firebase Upgrade Path
 The code is organized with clear separation between auth, data, and UI:

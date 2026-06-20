@@ -24,6 +24,11 @@ const FIREBASE_CONFIG = {
 
 const USE_FIREBASE = !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId);
 let db = null;
+window.forkliftApp = {
+  isCloud: () => USE_FIREBASE,
+  db: () => db,
+  currentUser: () => currentUser
+};
 
 const DEFAULT_USERS = [
   { username: "employee", pin: "1234", role: "employee", display: "Employee" },
@@ -45,6 +50,11 @@ const CHECKLIST_ITEMS = [
   "Battery / propane", "Mast / chains", "Data plate",
   "Safety decals", "General damage", "Floor area clear"
 ];
+
+function localDateISO(date = new Date()) {
+  const tzOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - tzOffset).toISOString().split("T")[0];
+}
 
 
 // ══════════════════════════════════════════════════════════════
@@ -349,7 +359,7 @@ function showInspectionForm() {
   document.getElementById("inspStep2").classList.add("hidden");
   document.getElementById("inspStep3").classList.add("hidden");
 
-  document.getElementById("inspDate").value     = new Date().toISOString().split("T")[0];
+  document.getElementById("inspDate").value     = localDateISO();
   document.getElementById("inspOperator").value  = currentUser.display || "";
 
   checkState = {};
@@ -532,7 +542,7 @@ function initMgrDashboard() {
   }
 
   // Filters
-  document.getElementById("mgrFilterDate").value   = new Date().toISOString().split("T")[0];
+  document.getElementById("mgrFilterDate").value   = localDateISO();
   document.getElementById("mgrFilterTruck").value   = "";
   document.getElementById("mgrFilterStatus").value  = "";
 
@@ -801,7 +811,7 @@ function exportCSV() {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `forklift-inspections-${new Date().toISOString().split("T")[0]}.csv`;
+  a.download = `forklift-inspections-${localDateISO()}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
   toast("📤 CSV exported!");
@@ -843,7 +853,7 @@ function toggleReportPanel() {
     const diff = day === 0 ? 6 : day - 1;
     const monday = new Date(today);
     monday.setDate(today.getDate() - diff);
-    document.getElementById("reportWeekStart").value = monday.toISOString().split("T")[0];
+    document.getElementById("reportWeekStart").value = localDateISO(monday);
 
     const trucks = [...new Set(getAllInspections().map(r => r.truckNum))].sort();
     const sel = document.getElementById("reportTruck");
@@ -860,7 +870,7 @@ function generateWeeklyReport() {
   const weekDates = [];
   for (let i = 0; i < 7; i++) {
     const d = new Date(start); d.setDate(start.getDate() + i);
-    weekDates.push(d.toISOString().split("T")[0]);
+    weekDates.push(localDateISO(d));
   }
 
   const allRecords = getAllInspections().filter(r => weekDates.includes(r.inspDate));
